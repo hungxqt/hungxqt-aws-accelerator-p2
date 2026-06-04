@@ -1,30 +1,26 @@
-# Evidence Pack - Terraform AWS kind ALB Demo
+# Evidence pack - Demo Terraform AWS kind ALB
 
 Last updated: 2026-06-04
 
+[Tiếng Việt](EVIDENCE_PACK_vi.md)
+
 This evidence pack documents how the project satisfies the requirement:
 
-> Create one EC2 instance, run a local Kubernetes cluster with kind or minikube,
-> deploy a lightweight app into Kubernetes, expose it to the Internet through an
-> AWS Application Load Balancer, and automate the full flow with Terraform using
-> at least two Terraform providers.
+> Create one EC2 instance, run a local Kubernetes cluster with kind or
+> minikube, deploy a lightweight app into Kubernetes, expose the app to the
+> Internet through an AWS Application Load Balancer, and automate the full flow
+> with Terraform using at least two Terraform providers.
 
-## 1. Project Snapshot
+## 1. Project Overview
 
 This repository builds a small Kubernetes-on-AWS demo with Terraform.
 
-- `infra/` creates AWS infrastructure: VPC, public subnets, EC2, IAM role,
-  security groups, Application Load Balancer, listener, target group, and target
-  attachment.
-- EC2 is bootstrapped with `user_data` to install Docker, kind, kubectl, and
-  create a single-node kind cluster.
-- EC2 writes the generated kubeconfig to AWS Systems Manager Parameter Store as
-  a `SecureString`.
+- `infra/` creates AWS infrastructure: VPC, public subnets, EC2, IAM role, security groups, Application Load Balancer, listener, target group, and target attachment.
+- EC2 is bootstrapped with `user_data` to install Docker, kind, kubectl, and create a single-node kind cluster.
+- EC2 writes the generated kubeconfig to AWS Systems Manager Parameter Store as a `SecureString`.
 - `scripts/deploy.ps1` downloads that kubeconfig to `generated/kubeconfig.yaml`.
-- `app/` uses the Terraform Kubernetes provider to deploy the app into the kind
-  cluster as a Deployment and expose it with a NodePort Service.
-- ALB forwards Internet traffic to the EC2 NodePort, then Kubernetes routes it
-  to the app Pod.
+- `app/` uses the Terraform Kubernetes provider to deploy the app into the kind cluster as a Deployment and expose it with a NodePort Service.
+- ALB forwards Internet traffic to the EC2 NodePort, then Kubernetes routes traffic to the app Pod.
 
 Current project configuration values:
 
@@ -40,12 +36,12 @@ Current project configuration values:
 | Kubernetes app name | `demo-app` |
 | Container image | `nginxinc/nginx-unprivileged:1.29-alpine` |
 | SSM kubeconfig parameter | `/hungqt-tf-kind/kind/kubeconfig` |
-| One-click command | `.\scripts\deploy.ps1` |
+| One-step deploy command | `.\scripts\deploy.ps1` |
 | Destroy command | `.\scripts\destroy.ps1` |
 
 ## 2. Architecture Evidence
 
-![Architecture flow](evidence/images/01-architecture-flow.svg)
+![alt text](evidence/images/architecture.png)
 
 Request flow:
 
@@ -69,35 +65,18 @@ scripts/deploy.ps1
 
 ## 3. Requirement Compliance Matrix
 
-| Requirement | How the project satisfies it | Evidence to capture |
-|---|---|---|
-| Infrastructure is created by Terraform | `infra/` root creates VPC, EC2, IAM, security groups, ALB, target group, listener, and target attachment through AWS provider. | Screenshot `05-aws-ec2-kind-host.png`; `terraform -chdir=infra validate`; `terraform -chdir=infra output`. |
-| One EC2 host runs Kubernetes locally | EC2 `user_data` installs Docker, kind, and kubectl, then creates a single-node kind cluster. | Screenshot `07-kubernetes-node-ready.png`; `kubectl get nodes`; SSM bootstrap log. |
-| App runs inside Kubernetes | `app/` root creates Kubernetes Namespace, Deployment, and NodePort Service with Kubernetes provider. | Screenshot `08-kubernetes-app-nodeport.png`; `kubectl -n demo get pods,svc -o wide`. |
-| App is not installed directly on EC2 | EC2 only runs Docker/kind; the HTTP workload is the Kubernetes Deployment image `nginxinc/nginx-unprivileged:1.29-alpine`. | `app/main.tf`; `kubectl -n demo describe deployment demo-app`. |
-| App is reachable from Internet through ALB | ALB listener forwards to target group on EC2 NodePort `30080`; Service routes to the Pod. | Screenshot `09-alb-target-healthy.png`; screenshot `10-public-alb-http-200.png`. |
-| One-click automation | `.\scripts\deploy.ps1` runs infra apply, waits for SSM kubeconfig, runs app apply, waits for rollout, and prints ALB URL. | Screenshot `02-one-click-deploy.png`. |
-| Uses at least two Terraform providers | `infra/` uses `hashicorp/aws` and `hashicorp/http`; `app/` uses `hashicorp/kubernetes`. | Screenshot `03-terraform-providers.png`; `terraform providers`. |
-| Wires another provider dynamically | Kubernetes provider reads `generated/kubeconfig.yaml`, which is produced from infra output and EC2 bootstrap through SSM. | Screenshot `06-ssm-kubeconfig-parameter.png`; `scripts/deploy.ps1`; `app/versions.tf`. |
+| Requirement | How the project satisfies it |
+|---|---|
+| Infrastructure is created by Terraform | Terraform root `infra/` creates VPC, EC2, IAM, security groups, ALB, target group, listener, and target attachment through the AWS provider. |
+| One EC2 host runs Kubernetes locally | EC2 `user_data` installs Docker, kind, and kubectl, then creates a single-node kind cluster. |
+| App runs inside Kubernetes | Terraform root `app/` creates a Kubernetes Namespace, Deployment, and NodePort Service through the Kubernetes provider. |
+| App is not installed directly on EC2 | EC2 only runs Docker/kind; the HTTP workload is the Kubernetes Deployment using image `nginxinc/nginx-unprivileged:1.29-alpine`. |
+| App is reachable from the Internet through ALB | ALB listener forwards to a target group pointing at EC2 NodePort `30080`; the Service routes requests to the Pod. |
+| One-command automation | `.\scripts\deploy.ps1` runs infra apply, waits for SSM kubeconfig, runs app apply, waits for rollout, and prints the ALB URL. |
+| Uses at least two Terraform providers | `infra/` uses `hashicorp/aws` and `hashicorp/http`; `app/` uses `hashicorp/kubernetes`. |
+| Wires another provider dynamically | The Kubernetes provider reads `generated/kubeconfig.yaml`, which is produced from infra output and EC2 bootstrap through SSM. |
 
-## 4. Screenshot Inventory
-
-Store screenshots under `evidence/images/` with these exact names.
-
-| File | Purpose | Capture target |
-|---|---|---|
-| `01-architecture-flow.svg` | Architecture diagram included in this repo. | Already included. |
-| `02-one-click-deploy.png` | Proves one-command deployment. | Terminal after running `.\scripts\deploy.ps1`, showing infra/app apply and final ALB URL. |
-| `03-terraform-providers.png` | Proves multiple providers. | Terminal output from `terraform -chdir=infra providers` and `terraform -chdir=app providers`. |
-| `04-terraform-outputs.png` | Proves Terraform outputs the integration values. | Terminal output from `terraform -chdir=infra output` and `terraform -chdir=app output`. |
-| `05-aws-ec2-kind-host.png` | Proves EC2 exists and is running. | AWS Console EC2 instance page filtered by `hungqt-tf-kind`. |
-| `06-ssm-kubeconfig-parameter.png` | Proves kubeconfig was published to SSM. | AWS Systems Manager Parameter Store metadata for `/hungqt-tf-kind/kind/kubeconfig`; do not show parameter value. |
-| `07-kubernetes-node-ready.png` | Proves kind cluster is ready. | Terminal output from `kubectl --kubeconfig generated\kubeconfig.yaml get nodes -o wide`. |
-| `08-kubernetes-app-nodeport.png` | Proves app Pod and NodePort Service exist. | Terminal output from `kubectl --kubeconfig generated\kubeconfig.yaml -n demo get pods,svc -o wide`. |
-| `09-alb-target-healthy.png` | Proves ALB forwards to EC2 NodePort. | AWS Console Target Group health tab, showing EC2 target healthy on port `30080`. |
-| `10-public-alb-http-200.png` | Proves Internet access through ALB. | Browser or terminal HTTP request to `terraform -chdir=infra output -raw app_url`. |
-
-## 5. One-Click Deployment Evidence
+## 4. One-Command Deployment Evidence
 
 Command:
 
@@ -105,7 +84,11 @@ Command:
 .\scripts\deploy.ps1
 ```
 
-What this proves:
+![alt text](evidence/images/image-3.png)
+
+![alt text](evidence/images/image-4.png)
+
+This proves:
 
 - Terraform initializes and applies the AWS infrastructure root.
 - EC2 bootstrap creates kind and publishes kubeconfig to SSM.
@@ -113,16 +96,7 @@ What this proves:
 - Terraform initializes and applies the Kubernetes app root.
 - The script waits for Deployment rollout and prints the ALB URL.
 
-Recommended terminal capture:
-
-```powershell
-.\scripts\deploy.ps1 2>&1 | Tee-Object evidence\deploy-output.txt
-```
-
-Keep this output in `evidence/deploy-output.txt` if needed, but do not commit it
-if it contains account-specific data you do not want to share.
-
-## 6. Provider Wiring Evidence
+## 5. Provider Wiring Evidence
 
 Infra providers:
 
@@ -130,11 +104,13 @@ Infra providers:
 terraform -chdir=infra providers
 ```
 
-Expected proof points:
+![alt text](evidence/images/image-1.png)
 
-- `registry.terraform.io/hashicorp/aws`
-- `registry.terraform.io/hashicorp/http`
-- Local wrapper modules under `modules/`
+Description:
+
+- Uses AWS provider `registry.terraform.io/hashicorp/aws`
+- Uses http provider `registry.terraform.io/hashicorp/http`
+- Local wrapper modules in `modules/`
 - Upstream AWS modules for VPC, EC2 instance, and ALB
 
 App provider:
@@ -143,9 +119,11 @@ App provider:
 terraform -chdir=app providers
 ```
 
-Expected proof point:
+![alt text](evidence/images/image-2.png)
 
-- `registry.terraform.io/hashicorp/kubernetes`
+Description:
+
+- Uses Kubernetes provider `registry.terraform.io/hashicorp/kubernetes`
 
 Provider bridge:
 
@@ -165,22 +143,24 @@ Code evidence:
 - `app/versions.tf` configures `provider "kubernetes"` with
   `config_path = var.kubeconfig_path`.
 
-## 7. AWS Runtime Evidence
+## 6. AWS Runtime Evidence
 
 Capture metadata only. Do not print kubeconfig contents.
 
 SSM parameter metadata:
 
 ```powershell
-aws ssm get-parameter `
-  --region ap-southeast-1 `
-  --name /hungqt-tf-kind/kind/kubeconfig `
-  --with-decryption `
-  --query "Parameter.{Name:Name,Type:Type,Version:Version,LastModifiedDate:LastModifiedDate}" `
+aws ssm get-parameter ^
+  --region ap-southeast-1 ^
+  --name /hungqt-tf-kind/kind/kubeconfig ^
+  --with-decryption ^
+  --query "Parameter.{Name:Name,Type:Type,Version:Version,LastModifiedDate:LastModifiedDate}" ^
   --output json
 ```
 
-Expected proof points:
+![alt text](evidence/images/image-5.png)
+
+Description:
 
 - `Name` is `/hungqt-tf-kind/kind/kubeconfig`.
 - `Type` is `SecureString`.
@@ -197,7 +177,9 @@ aws ec2 describe-instances `
   --output table
 ```
 
-Expected proof points:
+![alt text](evidence/images/image-6.png)
+
+Description:
 
 - Instance state is `running`.
 - Instance has an IAM instance profile.
@@ -220,13 +202,15 @@ aws elbv2 describe-target-health `
   --output table
 ```
 
-Expected proof points:
+![alt text](evidence/images/image-7.png)
+
+Description:
 
 - Target is the EC2 instance.
 - Port is `30080`.
 - State is `healthy`.
 
-## 8. Kubernetes Runtime Evidence
+## 7. Kubernetes Runtime Evidence
 
 Fetch kubeconfig from SSM:
 
@@ -249,13 +233,19 @@ $Kubeconfig = aws ssm get-parameter `
 )
 ```
 
+![alt text](evidence/images/image-8.png)
+
+![alt text](evidence/images/image-9.png)
+
 Confirm node readiness:
 
 ```powershell
 kubectl --kubeconfig generated\kubeconfig.yaml get nodes -o wide
 ```
 
-Expected proof points:
+![alt text](evidence/images/image-10.png)
+
+Description:
 
 - One kind control-plane node is listed.
 - `STATUS` is `Ready`.
@@ -267,10 +257,12 @@ Confirm app resources:
 kubectl --kubeconfig generated\kubeconfig.yaml -n demo get pods,svc -o wide
 ```
 
-Expected proof points:
+![alt text](evidence/images/image-11.png)
 
-- `demo-app` Pod is `Running`.
-- `demo-app` Service has type `NodePort`.
+Description:
+
+- Pod `demo-app` is `Running`.
+- Service `demo-app` has type `NodePort`.
 - Service exposes `80:30080/TCP`.
 
 Confirm rollout:
@@ -279,11 +271,13 @@ Confirm rollout:
 kubectl --kubeconfig generated\kubeconfig.yaml -n demo rollout status deployment/demo-app --timeout=5m
 ```
 
-Expected proof point:
+![alt text](evidence/images/image-12.png)
+
+Description:
 
 - Output contains `deployment "demo-app" successfully rolled out`.
 
-## 9. Public Access Evidence
+## 8. Public Access Evidence
 
 Get the public URL:
 
@@ -291,6 +285,8 @@ Get the public URL:
 $AppUrl = terraform -chdir=infra output -raw app_url
 $AppUrl
 ```
+
+![alt text](evidence/images/image-13.png)
 
 Verify HTTP 200:
 
@@ -300,15 +296,15 @@ $Response.StatusCode
 $Response.Content.Split("`n")[0..4]
 ```
 
-Expected proof points:
+![alt text](evidence/images/image-14.png)
+
+Description:
 
 - Status code is `200`.
 - Response contains the nginx welcome page HTML.
-- The request is made to the ALB DNS name, not the EC2 public IP.
+- The request is sent to the ALB DNS name, not the EC2 public IP.
 
-## 10. Validation Evidence
-
-Run these checks after implementation or before sharing the pack:
+## 9. Validation Evidence
 
 ```powershell
 terraform -chdir=infra fmt -check
@@ -317,26 +313,24 @@ terraform -chdir=app fmt -check
 terraform -chdir=app validate
 ```
 
-Expected proof points:
+![alt text](evidence/images/image-15.png)
 
-- All commands exit successfully.
+Description:
+
+- All commands run successfully.
 - `validate` prints `Success! The configuration is valid.`
 
-## 11. Security Evidence
+## 10. Security Evidence
 
 Security controls to mention during review:
 
 - EC2 has no SSH ingress by default.
 - ALB accepts HTTP according to `allowed_http_cidr`.
 - EC2 accepts NodePort traffic only from the ALB security group.
-- Kubernetes API access is restricted by `allowed_kubernetes_api_cidr`; when it
-  is `null`, Terraform detects the operator public IPv4 and allows only that
-  `/32`.
+- Kubernetes API access is restricted by `allowed_kubernetes_api_cidr`; when this value is `null`, Terraform detects the operator public IPv4 and only allows that `/32` CIDR.
 - Kubeconfig is stored in SSM Parameter Store as a `SecureString`.
-- `generated/kubeconfig.yaml`, `.terraform/`, `*.tfstate`, `*.tfplan`, and
-  `terraform.tfvars` are ignored by Git.
-- The demo container uses `nginxinc/nginx-unprivileged:1.29-alpine`, runs as a
-  non-root user, drops Linux capabilities, and disallows privilege escalation.
+- `generated/kubeconfig.yaml`, `.terraform/`, `*.tfstate`, `*.tfplan`, and `terraform.tfvars` are ignored by Git.
+- The demo container uses `nginxinc/nginx-unprivileged:1.29-alpine`, runs as a non-root user, drops Linux capabilities, and disallows privilege escalation.
 
 Redaction scan before sharing:
 
@@ -348,7 +342,7 @@ Expected result:
 
 - No matches.
 
-## 12. Cleanup Evidence
+## 11. Cleanup Evidence
 
 Destroy command:
 
@@ -356,7 +350,11 @@ Destroy command:
 .\scripts\destroy.ps1
 ```
 
-What this proves:
+![alt text](evidence/images/image-16.png)
+
+![alt text](evidence/images/image-17.png)
+
+Description:
 
 - Kubernetes resources are destroyed before AWS infrastructure.
 - The SSM kubeconfig parameter is deleted.
@@ -377,5 +375,4 @@ aws ssm delete-parameter --region $Region --name $Param
 terraform -chdir=infra destroy
 ```
 
-Destroy order matters: remove Kubernetes resources first, then remove EC2, ALB,
-and VPC infrastructure.
+Destroy order is important: remove Kubernetes resources first, then remove EC2, ALB, and VPC infrastructure.
