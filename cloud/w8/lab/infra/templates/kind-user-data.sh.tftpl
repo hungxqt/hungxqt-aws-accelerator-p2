@@ -1,0 +1,87 @@
+#!/bin/bash
+set -euxo pipefail
+
+exec > >(tee /var/log/kind-bootstrap.log | logger -t kind-bootstrap -s 2>/dev/console) 2>&1
+
+AWS_REGION="${aws_region}"
+KIND_CLUSTER_NAME="${kind_cluster_name}"
+KIND_NODE_IMAGE="${kind_node_image}"
+KIND_VERSION="${kind_version}"
+KUBECTL_VERSION="${kubectl_version}"
+KUBERNETES_API_PORT="${kubernetes_api_port}"
+NODE_PORT="${node_port}"
+KUBECONFIG_SSM_PARAMETER_NAME="${kubeconfig_ssm_parameter_name}"
+KUBECONFIG_PATH="/root/.kube/${kind_cluster_name}.kubeconfig"
+PUBLIC_KUBECONFIG_PATH="/root/.kube/${kind_cluster_name}.public.kubeconfig"
+
+dnf update -y
+dnf install -y awscli-2 docker
+
+systemctl enable --now docker
+
+install -d -m 0755 /usr/local/bin /opt/kind /root/.kube
+
+curl -fsSL "https://kind.sigs.k8s.io/dl/$KIND_VERSION/kind-linux-amd64" -o /usr/local/bin/kind
+chmod 0755 /usr/local/bin/kind
+
+curl -fsSL "https://dl.k8s.io/release/$KUBECTL_VERSION/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl
+chmod 0755 /usr/local/bin/kubectl
+
+TOKEN="$(curl -fsSL -X PUT -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" "http://169.254.169.254/latest/api/token")"
+PUBLIC_IPV4="$(curl -fsSL -H "X-aws-ec2-metadata-token: $TOKEN" "http://169.254.169.254/latest/meta-data/public-ipv4")"
+
+cat >/opt/kind/kind-config.yaml <<EOF
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  apiServerAddress: "0.0.0.0"
+  apiServerPort: $KUBERNETES_API_PORT
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: $NODE_PORT
+    hostPort: $NODE_PORT
+    listenAddress: "0.0.0.0"
+    protocol: TCP
+kubeadmConfigPatches:
+- |
+  kind: ClusterConfiguration
+  apiServer:
+    certSANs:
+    - "127.0.0.1"
+    - "localhost"
+    - "$PUBLIC_IPV4"
+EOF
+
+if ! kind get clusters | grep -qx "$KIND_CLUSTER_NAME"; then
+  kind create cluster \
+    --name "$KIND_CLUSTER_NAME" \
+    --config /opt/kind/kind-config.yaml \
+    --image "$KIND_NODE_IMAGE" \
+    --kubeconfig "$KUBECONFIG_PATH" \
+    --wait 10m
+fi
+
+kind export kubeconfig --name "$KIND_CLUSTER_NAME" --kubeconfig "$KUBECONFIG_PATH"
+sed -i -E "s#server: https://[^:]+:[0-9]+#server: https://127.0.0.1:$KUBERNETES_API_PORT#g" "$KUBECONFIG_PATH"
+chmod 0600 "$KUBECONFIG_PATH"
+
+kubectl --kubeconfig "$KUBECONFIG_PATH" wait --for=condition=Ready node --all --timeout=5m
+
+cp "$KUBECONFIG_PATH" "$PUBLIC_KUBECONFIG_PATH"
+sed -i -E "s#server: https://[^:]+:[0-9]+#server: https://$PUBLIC_IPV4:$KUBERNETES_API_PORT#g" "$PUBLIC_KUBECONFIG_PATH"
+chmod 0600 "$PUBLIC_KUBECONFIG_PATH"
+
+set +x
+KUBECONFIG_VALUE="$(cat "$PUBLIC_KUBECONFIG_PATH")"
+aws ssm put-parameter \
+  --region "$AWS_REGION" \
+  --name "$KUBECONFIG_SSM_PARAMETER_NAME" \
+  --type SecureString \
+  --tier Advanced \
+  --overwrite \
+  --value "$KUBECONFIG_VALUE"
+unset KUBECONFIG_VALUE
+set -x
+
+touch /opt/kind/bootstrap-complete

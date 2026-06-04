@@ -1,0 +1,10 @@
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+crash.log
+crash.*.log
+generated/
+
+infra/terraform.tfvars
+app/terraform.tfvars

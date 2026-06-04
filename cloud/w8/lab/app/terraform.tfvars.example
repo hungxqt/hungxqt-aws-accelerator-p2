@@ -1,0 +1,6 @@
+namespace       = "demo"
+app_name        = "demo-app"
+replicas        = 1
+container_image = "nginxinc/nginx-unprivileged:1.29-alpine"
+node_port       = 30080
+

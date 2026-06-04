@@ -1,0 +1,15 @@
+aws_region  = "us-east-1"
+name_prefix = "tf-kind-demo"
+
+# When null, Terraform detects your current public IPv4 address and allows only
+# that /32 to reach the kind Kubernetes API on the EC2 host.
+allowed_kubernetes_api_cidr = null
+
+allowed_http_cidr = "0.0.0.0/0"
+instance_type     = "t3.medium"
+node_port         = 30080
+
+tags = {
+  Environment = "demo"
+}
+
