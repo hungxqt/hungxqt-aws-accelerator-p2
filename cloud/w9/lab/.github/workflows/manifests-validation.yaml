@@ -1,0 +1,44 @@
+name: Validate ArgoCD Manifests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'argocd/**/*.yaml'
+      - 'argocd/**/*.yml'
+      - 'argocd-classic/**/*.yaml'
+      - 'argocd-classic/**/*.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'argocd/**/*.yaml'
+      - 'argocd/**/*.yml'
+      - 'argocd-classic/**/*.yaml'
+      - 'argocd-classic/**/*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Manifests Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Kustomize Configurations
+        run: |
+          # Find all kustomization.yaml files and run 'kubectl kustomize' locally to check syntax.
+          # This runs completely offline/locally without contacting the Kubernetes API server.
+          find . -name "kustomization.yaml" -not -path "*/.terraform/*" | while read -r file; do
+            dir=$(dirname "$file")
+            echo "Validating Kustomize directory: $dir"
+            if ! kubectl kustomize "$dir" > /dev/null; then
+              echo "❌ Error in $dir"
+              exit 1
+            fi
+            echo "✅ $dir is valid"
+          done

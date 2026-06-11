@@ -1,0 +1,26 @@
+prometheus:
+  alertmanager:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  nodeExporter:
+    enabled: false
+  server:
+    service:
+      type: NodePort
+      nodePort: 39090
+    persistentVolume:
+      enabled: false
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 200m
+        memory: 256Mi
+    extraScrapeConfigs: |
+      - job_name: 'backend'
+        metrics_path: '/api/v1/metrics'
+        scrape_interval: 10s
+        static_configs:
+          - targets: ['backend.demo-development.svc.cluster.local:5000', 'backend.demo-production.svc.cluster.local:5000']

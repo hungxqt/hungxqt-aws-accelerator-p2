@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visit Counter Sandbox</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            width: 380px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #38bdf8;
+        }
+        p.subtitle {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 24px;
+        }
+        .input-group {
+            text-align: left;
+            margin-bottom: 16px;
+        }
+        label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #cbd5e1;
+            display: block;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #38bdf8;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            margin-top: 12px;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+        button:hover {
+            opacity: 0.95;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        .result-container {
+            display: none;
+            margin-top: 24px;
+            padding: 20px;
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .result-msg {
+            font-size: 15px;
+            margin-bottom: 12px;
+            color: #34d399;
+        }
+        .counter {
+            font-size: 36px;
+            font-weight: 700;
+            color: #38bdf8;
+            margin: 8px 0;
+        }
+        .error-msg {
+            color: #f87171;
+            font-size: 14px;
+            margin-top: 12px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Visit Counter Service</h1>
+        <p class="subtitle">Enter username and password to record your visit</p>
+        
+        <div id="auth-form">
+            <div class="input-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" placeholder="e.g. alice" required>
+            </div>
+            <div class="input-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="••••••••" required>
+            </div>
+            <button onclick="submitVisit()">Register/Record Visit</button>
+            <div id="error-box" class="error-msg"></div>
+        </div>
+
+        <div id="result-box" class="result-container">
+            <div id="result-text" class="result-msg"></div>
+            <div class="counter" id="result-visits">-</div>
+            <p style="font-size: 12px; color: #94a3b8; margin: 0;">Total user visits recorded</p>
+            <button onclick="resetForm()" style="background: #475569; margin-top: 20px;">Sign Out / Go Back</button>
+        </div>
+    </div>
+
+    <script>
+        function submitVisit() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorBox = document.getElementById('error-box');
+            
+            errorBox.style.display = 'none';
+
+            if (!username || !password) {
+                errorBox.innerText = 'Username and password are required.';
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            // Call local reverse-proxy endpoint /api/v1/visit which routes to backend
+            fetch('/api/v1/visit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            })
+            .then(res => res.json().then(data => ({ status: res.status, body: data })))
+            .then(res => {
+                const authForm = document.getElementById('auth-form');
+                const resultBox = document.getElementById('result-box');
+                const resultText = document.getElementById('result-text');
+                const resultVisits = document.getElementById('result-visits');
+
+                if (res.status === 200) {
+                    resultText.innerText = res.body.message;
+                    resultVisits.innerText = res.body.visits;
+                    authForm.style.display = 'none';
+                    resultBox.style.display = 'block';
+                } else {
+                    errorBox.innerText = res.body.error || 'Server error occurred.';
+                    errorBox.style.display = 'block';
+                }
+            })
+            .catch(err => {
+                errorBox.innerText = 'Failed to connect to backend: ' + err;
+                errorBox.style.display = 'block';
+            });
+        }
+
+        function resetForm() {
+            document.getElementById('result-box').style.display = 'none';
+            document.getElementById('auth-form').style.display = 'block';
+            document.getElementById('password').value = '';
+            document.getElementById('username').value = '';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+#!/bin/bash
+set -euxo pipefail
+
+exec > >(tee /var/log/minikube-user-data.log | logger -t minikube-user-data -s 2>/dev/console) 2>&1
+
+dnf update -y
+dnf install -y awscli-2 conntrack-tools docker
+
+systemctl enable --now docker
+
+if ! id -u minikube >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash minikube
+fi
+usermod -aG docker minikube
+
+install -d -m 0755 /usr/local/bin /etc/minikube-bootstrap /var/lib/minikube-bootstrap /root/.kube
+
+ARCH="$(uname -m)"
+case "$ARCH" in
+  aarch64|arm64)
+    TOOL_ARCH="arm64"
+    ;;
+  x86_64|amd64)
+    TOOL_ARCH="amd64"
+    ;;
+  *)
+    echo "Unsupported machine architecture: $ARCH" >&2
+    exit 1
+    ;;
+esac
+
+curl -fsSL "https://storage.googleapis.com/minikube/releases/${minikube_version}/minikube-linux-$TOOL_ARCH" -o /usr/local/bin/minikube
+chmod 0755 /usr/local/bin/minikube
+
+curl -fsSL "https://dl.k8s.io/release/${kubectl_version}/bin/linux/$TOOL_ARCH/kubectl" -o /usr/local/bin/kubectl
+chmod 0755 /usr/local/bin/kubectl
+
+cat >/etc/minikube-bootstrap/env <<'EOF'
+AWS_REGION=${aws_region}
+KUBECONFIG_SSM_PARAMETER_NAME=${kubeconfig_ssm_parameter_name}
+KUBECTL_VERSION=${kubectl_version}
+KUBERNETES_API_PORT=${kubernetes_api_port}
+KUBERNETES_VERSION=${kubernetes_version}
+MINIKUBE_CPUS=${minikube_cpus}
+MINIKUBE_MEMORY_MB=${minikube_memory_mb}
+MINIKUBE_PROFILE=${minikube_profile}
+MINIKUBE_VERSION=${minikube_version}
+NODE_PORT=${node_port}
+DEVELOPMENT_NODE_PORT=${development_node_port}
+ARGOCD_NODE_PORT=${argocd_node_port}
+EOF
+chmod 0600 /etc/minikube-bootstrap/env
+
+cat >/usr/local/sbin/minikube-bootstrap.sh <<'EOF'
+#!/bin/bash
+set -euxo pipefail
+
+exec > >(tee -a /var/log/minikube-bootstrap.log | logger -t minikube-bootstrap -s 2>/dev/console) 2>&1
+
+. /etc/minikube-bootstrap/env
+
+TOKEN="$(curl -fsSL -X PUT -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" "http://169.254.169.254/latest/api/token")"
+PUBLIC_IPV4="$(curl -fsSL -H "X-aws-ec2-metadata-token: $TOKEN" "http://169.254.169.254/latest/meta-data/public-ipv4")"
+
+USER_KUBECONFIG="/home/minikube/.kube/config"
+PUBLIC_KUBECONFIG_PATH="/root/.kube/minikube.public.kubeconfig"
+LAST_PUBLIC_IPV4_PATH="/var/lib/minikube-bootstrap/public-ip"
+
+chown -R minikube:minikube /home/minikube
+
+PREVIOUS_PUBLIC_IPV4=""
+if [ -f "$LAST_PUBLIC_IPV4_PATH" ]; then
+  PREVIOUS_PUBLIC_IPV4="$(cat "$LAST_PUBLIC_IPV4_PATH")"
+fi
+
+if [ -n "$PREVIOUS_PUBLIC_IPV4" ] && [ "$PREVIOUS_PUBLIC_IPV4" != "$PUBLIC_IPV4" ]; then
+  runuser -u minikube -- minikube delete --profile "$MINIKUBE_PROFILE" || true
+fi
+
+if ! runuser -u minikube -- minikube status --profile "$MINIKUBE_PROFILE" --format='{{.Host}}' 2>/dev/null | grep -qx Running; then
+  runuser -u minikube -- minikube start \
+    --profile "$MINIKUBE_PROFILE" \
+    --driver=docker \
+    --container-runtime=containerd \
+    --kubernetes-version="$KUBERNETES_VERSION" \
+    --cpus="$MINIKUBE_CPUS" \
+    --memory="$MINIKUBE_MEMORY_MB"mb \
+    --listen-address=0.0.0.0 \
+    --apiserver-port="$KUBERNETES_API_PORT" \
+    --apiserver-ips="$PUBLIC_IPV4" \
+    --extra-config=apiserver.service-node-port-range=30000-40000 \
+    --ports="$KUBERNETES_API_PORT:$KUBERNETES_API_PORT" \
+    --ports="$ARGOCD_NODE_PORT:$ARGOCD_NODE_PORT" \
+    --ports="$DEVELOPMENT_NODE_PORT:$DEVELOPMENT_NODE_PORT" \
+    --ports="$NODE_PORT:$NODE_PORT" \
+    --ports="39090:39090"
+fi
+
+runuser -u minikube -- kubectl --kubeconfig "$USER_KUBECONFIG" wait --for=condition=Ready node --all --timeout=5m
+
+runuser -u minikube -- kubectl --kubeconfig "$USER_KUBECONFIG" config view --raw --flatten --minify > "$PUBLIC_KUBECONFIG_PATH"
+sed -i -E "s#server: https://[^:]+:[0-9]+#server: https://$PUBLIC_IPV4:$KUBERNETES_API_PORT#g" "$PUBLIC_KUBECONFIG_PATH"
+chmod 0600 "$PUBLIC_KUBECONFIG_PATH"
+
+set +x
+KUBECONFIG_VALUE="$(cat "$PUBLIC_KUBECONFIG_PATH")"
+aws ssm put-parameter \
+  --region "$AWS_REGION" \
+  --name "$KUBECONFIG_SSM_PARAMETER_NAME" \
+  --type SecureString \
+  --tier Intelligent-Tiering \
+  --overwrite \
+  --value "$KUBECONFIG_VALUE"
+unset KUBECONFIG_VALUE
+set -x
+
+printf "%s" "$PUBLIC_IPV4" > "$LAST_PUBLIC_IPV4_PATH"
+touch /var/lib/minikube-bootstrap/bootstrap-complete
+EOF
+chmod 0755 /usr/local/sbin/minikube-bootstrap.sh
+
+cat >/etc/systemd/system/minikube-bootstrap.service <<'EOF'
+[Unit]
+Description=Bootstrap and publish the local minikube kubeconfig
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/minikube-bootstrap.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now minikube-bootstrap.service

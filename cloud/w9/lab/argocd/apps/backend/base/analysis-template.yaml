@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: backend-success-rate
+spec:
+  metrics:
+  - name: success-rate
+    interval: 10s
+    successCondition: result[0] >= 0.95
+    failureLimit: 2
+    provider:
+      prometheus:
+        address: http://prometheus-production-server.demo-production.svc.cluster.local:80
+        query: |
+          ((sum(rate(go_visit_requests_total{status="200"}[2m])) or sum(rate(go_visit_requests_total[2m])) * 0) / sum(rate(go_visit_requests_total[2m]))) or vector(1)
+
+
