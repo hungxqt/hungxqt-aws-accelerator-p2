@@ -22,7 +22,7 @@ Môi trường triển khai:
 3. [Phần I - Lab buổi sáng: GitOps và CI/CD](#3-phần-i---lab-buổi-sáng-gitops-và-cicd)
 4. [Phần II - Lab buổi chiều: Observability và Canary](#4-phần-ii---lab-buổi-chiều-observability-và-canary)
 5. [Phần III - Dự án cuối khóa: Ship Smartly](#5-phần-iii---dự-án-cuối-khóa-ship-smartly)
-6. [Kết luận](#7-kết-luận)
+6. [Kết luận](#6-kết-luận)
 
 ## 1. Tổng quan kết quả
 
