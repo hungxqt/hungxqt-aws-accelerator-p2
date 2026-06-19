@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-production
+  labels:
+    platform.xbrain.dev/tenant: demo-production
+    platform.xbrain.dev/security-profile: demo-restricted
+    policy.sigstore.dev/include: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-development
+  labels:
+    platform.xbrain.dev/tenant: demo-development
+    platform.xbrain.dev/security-profile: demo-restricted
+    policy.sigstore.dev/include: "true"

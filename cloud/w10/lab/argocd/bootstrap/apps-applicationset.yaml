@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: sandbox-apps
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  syncPolicy:
+    preserveResourcesOnDeletion: false
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+    - git:
+        repoURL: REPLACE_WITH_REPOSITORY_URL
+        revision: REPLACE_WITH_TARGET_REVISION
+        directories:
+          - path: argocd/apps/*/overlays/*
+  template:
+    metadata:
+      name: '{{ printf "%s-%s" (index .path.segments 2) .path.basename | normalize }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: '{{ if eq (index .path.segments 2) "tenant-namespaces" }}-10{{ else if eq (index .path.segments 2) "metrics-server" }}-6{{ else if eq (index .path.segments 2) "database" }}-5{{ else if eq (index .path.segments 2) "team-rbac" }}-4{{ else if eq (index .path.segments 2) "network-policies" }}-3{{ else if eq (index .path.segments 2) "gatekeeper-policies" }}-2{{ else if eq (index .path.segments 2) "backend" }}0{{ else if eq (index .path.segments 2) "frontend" }}5{{ else if eq (index .path.segments 2) "cosign-policies" }}2{{ else }}1{{ end }}'
+    spec:
+      project: sandbox
+      source:
+        repoURL: REPLACE_WITH_REPOSITORY_URL
+        targetRevision: REPLACE_WITH_TARGET_REVISION
+        path: '{{ .path.path }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ if eq (index .path.segments 2) "metrics-server" }}kube-system{{ else if eq (index .path.segments 2) "argo-rollout" }}argo-rollout-production{{ else if eq (index .path.segments 2) "prometheus" }}prometheus-production{{ else if or (eq (index .path.segments 2) "gatekeeper-operator") (eq (index .path.segments 2) "gatekeeper-policies") }}gatekeeper-production{{ else if or (eq (index .path.segments 2) "policy-controller") (eq (index .path.segments 2) "cosign-policies") }}cosign-system{{ else }}demo-{{ .path.basename }}{{ end }}'
+      ignoreDifferences:
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          jsonPointers:
+            - /spec/preserveUnknownFields
+        - group: apps
+          kind: StatefulSet
+          jqPathExpressions:
+            - .spec.volumeClaimTemplates[].apiVersion
+            - .spec.volumeClaimTemplates[].kind
+        - group: admissionregistration.k8s.io
+          kind: MutatingWebhookConfiguration
+          jqPathExpressions:
+            - .webhooks[].namespaceSelector.matchExpressions
+        - group: admissionregistration.k8s.io
+          kind: ValidatingWebhookConfiguration
+          jqPathExpressions:
+            - .webhooks[].namespaceSelector.matchExpressions
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true

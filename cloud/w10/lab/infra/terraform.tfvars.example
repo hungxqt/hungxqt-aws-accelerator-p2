@@ -1,0 +1,21 @@
+aws_region  = "us-east-1"
+name_prefix = "tf-minikube-demo"
+
+# When null, Terraform detects your current public IPv4 address and allows only
+# that /32 to reach the minikube Kubernetes API on the EC2 host.
+allowed_kubernetes_api_cidr = null
+
+# When null, app access uses the same detected/operator CIDR.
+allowed_app_cidr = null
+
+# When null, Argo CD UI/API access uses the detected/operator CIDR.
+allowed_argocd_cidr = null
+
+instance_type         = "t4g.small"
+node_port             = 30080
+development_node_port = 30081
+argocd_node_port      = 30443
+
+tags = {
+  Environment = "demo"
+}

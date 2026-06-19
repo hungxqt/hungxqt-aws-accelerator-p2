@@ -1,0 +1,36 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sdisallowrootuser
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sDisallowRootUser
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sdisallowrootuser
+
+        violation[{"msg": msg}] {
+          input.review.object.spec.securityContext.runAsUser == 0
+          msg := "pod-level securityContext.runAsUser is set to 0 (root is disallowed) (Risk: F-04)"
+        }
+
+        violation[{"msg": msg}] {
+          container := all_containers[_]
+          container.securityContext.runAsUser == 0
+          msg := sprintf("container <%v> has securityContext.runAsUser set to 0 (root is disallowed) (Risk: F-04)", [container.name])
+        }
+
+        all_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+        all_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+        all_containers[c] {
+          c := input.review.object.spec.ephemeralContainers[_]
+        }

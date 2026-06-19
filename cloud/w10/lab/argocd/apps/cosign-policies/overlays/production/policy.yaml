@@ -1,0 +1,18 @@
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: demo-production-cosign-required
+spec:
+  images:
+    - glob: "docker.io/tqhung0105/argocd-lab-backend**"
+    - glob: "index.docker.io/tqhung0105/argocd-lab-backend**"
+    - glob: "docker.io/tqhung0105/argocd-lab-frontend**"
+    - glob: "index.docker.io/tqhung0105/argocd-lab-frontend**"
+  authorities:
+    - name: authority-0
+      key:
+        data: |
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEavzTjb5w++f1RB4+fyVpyEFzXsHr
+          /XecCqVz44NCcmZDtFVY33gnp2BllAcOqUbTYbP0aa6IEiX1QArLlBh4FA==
+          -----END PUBLIC KEY-----

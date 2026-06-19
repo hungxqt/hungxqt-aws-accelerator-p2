@@ -1,0 +1,21 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sAllowedRepos
+metadata:
+  name: pods-must-use-allowed-registries
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaceSelector:
+      matchLabels:
+        platform.xbrain.dev/security-profile: demo-restricted
+  parameters:
+    repos:
+      - "docker.io/"
+      - "index.docker.io/"
+      - "tqhung0105/"
+      - "quay.io/"

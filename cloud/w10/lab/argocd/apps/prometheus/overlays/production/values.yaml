@@ -1,0 +1,67 @@
+prometheus:
+  alertmanager:
+    enabled: true
+    extraSecretMounts:
+      - name: alertmanager-smtp-secret
+        mountPath: /etc/alertmanager-secrets
+        secretName: alertmanager-smtp-secret
+        readOnly: true
+    config:
+      global:
+        smtp_smarthost: 'smtp.gmail.com:587'
+        smtp_from: 'tqhung0105@gmail.com'
+        smtp_auth_username: 'tqhung0105@gmail.com'
+        smtp_auth_password_file: '/etc/alertmanager-secrets/smtp_auth_password'
+        smtp_require_tls: true
+      route:
+        group_by: ['alertname', 'job']
+        group_wait: 10s
+        group_interval: 10s
+        repeat_interval: 1h
+        receiver: 'personal-email'
+      receivers:
+        - name: 'personal-email'
+          email_configs:
+            - to: 'tqhung0105@gmail.com'
+              send_resolved: true
+  prometheus-pushgateway:
+    enabled: false
+  server:
+    replicaCount: 1
+    service:
+      type: NodePort
+      nodePort: 39090
+    persistentVolume:
+      enabled: true
+      size: 2Gi
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    extraScrapeConfigs: |
+      - job_name: 'backend'
+        metrics_path: '/api/v1/metrics'
+        scrape_interval: 500ms
+        scrape_timeout: 500ms
+        static_configs:
+          - targets: ['backend.demo-development.svc.cluster.local:5000', 'backend.demo-production.svc.cluster.local:5000']
+
+  serverFiles:
+    alerting_rules.yml:
+      groups:
+        - name: backend-slo-alerts
+          rules:
+            - alert: BackendSuccessRateSLOViolation
+              expr: |
+                (sum(rate(go_visit_requests_total{status="200"}[5m])) or vector(1))
+                /
+                (sum(rate(go_visit_requests_total[5m])) or vector(1)) < 0.95
+              for: 1m
+              labels:
+                severity: critical
+              annotations:
+                summary: "SLO Violation: Backend Success Rate Low"
+                description: "Backend success rate (SLI) dropped below the SLO of 95% over the last 5 minutes. Current success rate: {{ $value }}."

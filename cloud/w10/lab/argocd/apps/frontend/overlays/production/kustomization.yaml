@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: demo-production
+resources:
+  - ../../base
+patches:
+  - path: service-nodeport.yaml
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Rollout
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+images:
+  - name: tqhung0105/argocd-lab-frontend
+    newName: docker.io/tqhung0105/argocd-lab-frontend
+    digest: sha256:93c14f0d4d30eb646c12563cc3df8700476547e8f3267c4dd9beac16364a2f9b

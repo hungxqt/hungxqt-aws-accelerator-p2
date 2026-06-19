@@ -1,0 +1,521 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "commonAnnotations": {
+      "description": "# This will set some annotations in config maps and secrets. Use case: Disable versioning to deploy helm chart using spinnaker",
+      "required": [],
+      "title": "commonAnnotations",
+      "type": "object"
+    },
+    "commonNodeSelector": {
+      "description": "# common node selector for all the pods",
+      "required": [],
+      "title": "commonNodeSelector",
+      "type": "object"
+    },
+    "commonTolerations": {
+      "description": "# common tolerations for all the pods",
+      "items": {
+        "required": []
+      },
+      "title": "commonTolerations",
+      "type": "array"
+    },
+    "cosign": {
+      "properties": {
+        "cosignPub": {
+          "default": "",
+          "description": "add the values in base64 encoded",
+          "title": "cosignPub",
+          "type": "string"
+        },
+        "webhookName": {
+          "default": "policy.sigstore.dev",
+          "title": "webhookName",
+          "type": "string"
+        },
+        "webhookTimeoutSeconds": {
+          "required": [],
+          "title": "webhookTimeoutSeconds",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "cosign",
+      "type": "object"
+    },
+    "global": {
+      "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "imagePullSecrets": {
+      "items": {
+        "required": []
+      },
+      "title": "imagePullSecrets",
+      "type": "array"
+    },
+    "installCRDs": {
+      "default": true,
+      "title": "installCRDs",
+      "type": "boolean"
+    },
+    "leasescleanup": {
+      "properties": {
+        "automountServiceAccountToken": {
+          "default": true,
+          "title": "automountServiceAccountToken",
+          "type": "boolean"
+        },
+        "image": {
+          "properties": {
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "title": "pullPolicy",
+              "type": "string"
+            },
+            "repository": {
+              "default": "cgr.dev/chainguard/kubectl",
+              "title": "repository",
+              "type": "string"
+            },
+            "version": {
+              "default": "latest-dev",
+              "title": "version",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
+        "podSecurityContext": {
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "podSecurityContext",
+          "type": "object"
+        },
+        "priorityClass": {
+          "default": "",
+          "title": "priorityClass",
+          "type": "string"
+        },
+        "resources": {
+          "properties": {
+            "limits": {
+              "properties": {
+                "cpu": {
+                  "default": "",
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "",
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "limits",
+              "type": "object"
+            },
+            "requests": {
+              "properties": {
+                "cpu": {
+                  "default": "",
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "",
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "requests",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "resources",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "leasescleanup",
+      "type": "object"
+    },
+    "loglevel": {
+      "default": "info",
+      "title": "loglevel",
+      "type": "string"
+    },
+    "serviceMonitor": {
+      "description": "# serviceMonitor makes policy controller metrics discoverable to prometheus",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "title": "serviceMonitor",
+      "type": "object"
+    },
+    "webhook": {
+      "properties": {
+        "affinity": {
+          "description": "The default affinity config is to spread the webhook across nodes.\nSee charts/policy-controller/templates/webhook/deployment_webhook.yaml#L39 for more info.",
+          "required": [],
+          "title": "affinity",
+          "type": "object"
+        },
+        "automountServiceAccountToken": {
+          "default": true,
+          "title": "automountServiceAccountToken",
+          "type": "boolean"
+        },
+        "configData": {
+          "required": [],
+          "title": "configData",
+          "type": "object"
+        },
+        "customLabels": {
+          "required": [],
+          "title": "customLabels",
+          "type": "object"
+        },
+        "env": {
+          "required": [],
+          "title": "env",
+          "type": "object"
+        },
+        "envFrom": {
+          "required": [],
+          "title": "envFrom",
+          "type": "object"
+        },
+        "extraArgs": {
+          "description": "configmaps:\n  - mycm1\n  - mycm2\nsecrets:\n  - mys1\n  - mys2",
+          "required": [],
+          "title": "extraArgs",
+          "type": "object"
+        },
+        "failurePolicy": {
+          "default": "Fail",
+          "title": "failurePolicy",
+          "type": "string"
+        },
+        "image": {
+          "properties": {
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "title": "pullPolicy",
+              "type": "string"
+            },
+            "repository": {
+              "default": "ghcr.io/sigstore/policy-controller/policy-controller",
+              "title": "repository",
+              "type": "string"
+            },
+            "version": {
+              "default": "sha256:0bcd60beb93f4427c29cf3a669743caf58490e98ded4380c33c09f092734a6ab",
+              "description": "crane digest ghcr.io/sigstore/policy-controller/policy-controller:v0.13.1",
+              "title": "version",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
+        "name": {
+          "default": "webhook",
+          "title": "name",
+          "type": "string"
+        },
+        "namespaceSelector": {
+          "properties": {
+            "matchExpressions": {
+              "items": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "key": {
+                        "default": "policy.sigstore.dev/include",
+                        "title": "key",
+                        "type": "string"
+                      },
+                      "operator": {
+                        "default": "In",
+                        "title": "operator",
+                        "type": "string"
+                      },
+                      "values": {
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            }
+                          ],
+                          "required": []
+                        },
+                        "title": "values",
+                        "type": "array"
+                      }
+                    },
+                    "required": [],
+                    "type": "object"
+                  }
+                ],
+                "required": []
+              },
+              "title": "matchExpressions",
+              "type": "array"
+            }
+          },
+          "required": [],
+          "title": "namespaceSelector",
+          "type": "object"
+        },
+        "podAnnotations": {
+          "required": [],
+          "title": "podAnnotations",
+          "type": "object"
+        },
+        "podDisruptionBudget": {
+          "properties": {
+            "enabled": {
+              "default": true,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "minAvailable": {
+              "default": 1,
+              "title": "minAvailable",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "podDisruptionBudget",
+          "type": "object"
+        },
+        "podSecurityContext": {
+          "properties": {
+            "allowPrivilegeEscalation": {
+              "default": false,
+              "title": "allowPrivilegeEscalation",
+              "type": "boolean"
+            },
+            "capabilities": {
+              "properties": {
+                "drop": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "required": []
+                  },
+                  "title": "drop",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "capabilities",
+              "type": "object"
+            },
+            "enabled": {
+              "default": true,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "readOnlyRootFilesystem": {
+              "default": true,
+              "title": "readOnlyRootFilesystem",
+              "type": "boolean"
+            },
+            "runAsUser": {
+              "default": 1000,
+              "title": "runAsUser",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "podSecurityContext",
+          "type": "object"
+        },
+        "priorityClass": {
+          "default": "",
+          "description": "defaulting: 10\nvalidating: 10",
+          "title": "priorityClass",
+          "type": "string"
+        },
+        "registryCaBundle": {
+          "required": [],
+          "title": "registryCaBundle",
+          "type": "object"
+        },
+        "replicaCount": {
+          "default": 1,
+          "title": "replicaCount",
+          "type": "integer"
+        },
+        "resources": {
+          "properties": {
+            "limits": {
+              "properties": {
+                "cpu": {
+                  "default": "200m",
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "512Mi",
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "limits",
+              "type": "object"
+            },
+            "requests": {
+              "properties": {
+                "cpu": {
+                  "default": "100m",
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "128Mi",
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "requests",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "resources",
+          "type": "object"
+        },
+        "securityContext": {
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "runAsUser": {
+              "default": 65532,
+              "title": "runAsUser",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "securityContext",
+          "type": "object"
+        },
+        "service": {
+          "properties": {
+            "annotations": {
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "port": {
+              "default": 443,
+              "title": "port",
+              "type": "integer"
+            },
+            "type": {
+              "default": "ClusterIP",
+              "title": "type",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "service",
+          "type": "object"
+        },
+        "serviceAccount": {
+          "properties": {
+            "annotations": {
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "create": {
+              "default": true,
+              "title": "create",
+              "type": "boolean"
+            },
+            "name": {
+              "default": "",
+              "title": "name",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "serviceAccount",
+          "type": "object"
+        },
+        "volumeMounts": {
+          "items": {
+            "required": []
+          },
+          "title": "volumeMounts",
+          "type": "array"
+        },
+        "volumes": {
+          "items": {
+            "required": []
+          },
+          "title": "volumes",
+          "type": "array"
+        },
+        "webhookNames": {
+          "properties": {
+            "defaulting": {
+              "default": "defaulting.clusterimagepolicy.sigstore.dev",
+              "title": "defaulting",
+              "type": "string"
+            },
+            "validating": {
+              "default": "validating.clusterimagepolicy.sigstore.dev",
+              "title": "validating",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "webhookNames",
+          "type": "object"
+        },
+        "webhookTimeoutSeconds": {
+          "required": [],
+          "title": "webhookTimeoutSeconds",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "webhook",
+      "type": "object"
+    }
+  },
+  "required": [],
+  "type": "object"
+}

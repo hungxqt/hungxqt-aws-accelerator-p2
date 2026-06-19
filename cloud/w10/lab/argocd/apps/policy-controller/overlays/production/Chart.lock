@@ -1,0 +1,6 @@
+dependencies:
+- name: policy-controller
+  repository: file://charts/policy-controller
+  version: 0.10.6
+digest: sha256:2e4c37ab179cbfe3ad5c32f400682977bb392a8cefed8a082742a3ea3f2dfa17
+generated: "2026-06-18T18:41:54.9262881+07:00"

@@ -1,0 +1,19 @@
+gatekeeper:
+  controllerManager:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  audit:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  # Run only 1 replica of controller manager in development/minikube environment
+  replicas: 1

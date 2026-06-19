@@ -1,0 +1,48 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sdisallowlatesttag
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sDisallowLatestTag
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sdisallowlatesttag
+
+        violation[{"msg": msg}] {
+          container := all_containers[_]
+          violation_latest(container.image)
+          msg := sprintf("container <%v> is using latest image tag or has no tag/digest specified: <%v> (Risk: F-01)", [container.name, container.image])
+        }
+
+        all_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+        all_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+        all_containers[c] {
+          c := input.review.object.spec.ephemeralContainers[_]
+        }
+
+        violation_latest(image) {
+          not contains(image, "@")
+          parts := split(image, "/")
+          last_part := parts[count(parts) - 1]
+          not contains(last_part, ":")
+        }
+
+        violation_latest(image) {
+          not contains(image, "@")
+          parts := split(image, "/")
+          last_part := parts[count(parts) - 1]
+          contains(last_part, ":")
+          tag_parts := split(last_part, ":")
+          tag := tag_parts[count(tag_parts) - 1]
+          tag == "latest"
+        }

@@ -1,0 +1,25 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: demo-sre-binding
+subjects:
+  - kind: Group
+    name: "oidc:demo-sres"
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: demo-sre
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: demo-viewer-binding
+subjects:
+  - kind: Group
+    name: "oidc:demo-viewers"
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: demo-viewer
+  apiGroup: rbac.authorization.k8s.io

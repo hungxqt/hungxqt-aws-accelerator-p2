@@ -1,0 +1,6 @@
+policy-controller:
+  webhook:
+    configData:
+      no-match-policy: "deny"
+    workloadMutation:
+      enabled: false

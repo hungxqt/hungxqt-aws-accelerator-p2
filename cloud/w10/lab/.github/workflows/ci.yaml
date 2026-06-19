@@ -1,0 +1,322 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+      - "argocd/**"
+      - "k8s/**"
+      - "src/**"
+      - "infra/**"
+      - "modules/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+      - "argocd/**"
+      - "k8s/**"
+      - "src/**"
+      - "infra/**"
+      - "modules/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAMESPACE: tqhung0105
+  BACKEND_IMAGE: docker.io/tqhung0105/argocd-lab-backend
+  FRONTEND_IMAGE: docker.io/tqhung0105/argocd-lab-frontend
+  COSIGN_KEY_SECRET_ID: minikube-sandbox/cosign-key
+  COSIGN_PASSWORD_SECRET_ID: minikube-sandbox/cosign-password
+
+jobs:
+  lint-and-test:
+    name: Lint, test, and validate manifests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      src_changed: ${{ steps.filter.outputs.src }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for source changes
+        id: filter
+        uses: dorny/paths-filter@v4.0.1
+        with:
+          filters: |
+            src:
+              - 'src/**'
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: src/backend/go.mod
+          cache: true
+          cache-dependency-path: src/backend/go.sum
+
+      - name: Check Go formatting
+        working-directory: src/backend
+        run: |
+          test -z "$(gofmt -l .)"
+
+      - name: Run Go tests
+        working-directory: src/backend
+        run: go test ./...
+
+      - name: Run Go vet
+        working-directory: src/backend
+        run: go vet ./...
+
+      - name: Install YAML and workflow linters
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install yamllint==1.37.1
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+
+      - name: Lint workflow files
+        run: |
+          "$(go env GOPATH)/bin/actionlint" -color
+
+      - name: Lint YAML files
+        run: |
+          yamllint -d "{extends: relaxed, ignore: '**/templates/**', rules: {line-length: disable, truthy: disable, new-lines: disable}}" \
+            .github/workflows \
+            argocd \
+            k8s
+
+      - name: Validate Kustomize configurations
+        run: |
+          find argocd k8s -name "kustomization.yaml" -not -path "*/.terraform/*" | while read -r file; do
+            dir=$(dirname "$file")
+            echo "Validating Kustomize directory: $dir"
+            kubectl kustomize "$dir" > /dev/null
+          done
+
+  build-pr-images:
+    name: Build images for PR validation
+    runs-on: ubuntu-latest
+    needs:
+      - lint-and-test
+    if: github.event_name == 'pull_request' && needs.lint-and-test.outputs.src_changed == 'true'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: backend
+            context: src/backend
+            dockerfile: src/backend/Dockerfile
+          - component: frontend
+            context: src/frontend
+            dockerfile: src/frontend/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.1.0
+
+      - name: Build image without push
+        uses: docker/build-push-action@v7.2.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: false
+          tags: local/${{ matrix.component }}:${{ github.sha }}
+
+  build-scan-push-sign:
+    name: Build, scan, push, and sign images
+    runs-on: ubuntu-latest
+    needs:
+      - lint-and-test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || needs.lint-and-test.outputs.src_changed == 'true')
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: backend
+            context: src/backend
+            dockerfile: src/backend/Dockerfile
+            image: docker.io/tqhung0105/argocd-lab-backend
+          - component: frontend
+            context: src/frontend
+            dockerfile: src/frontend/Dockerfile
+            image: docker.io/tqhung0105/argocd-lab-frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configure AWS credentials for Cosign key
+        uses: aws-actions/configure-aws-credentials@v6.2.0
+        with:
+          role-to-assume: ${{ vars.AWS_CI_SECRETS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.0
+        with:
+          # policy-controller 0.13.x cannot enforce plain image signatures stored
+          # in the newer Sigstore bundle format emitted by modern Cosign releases.
+          cosign-release: "v2.3.0"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.1.0
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4.2.0
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and load image locally
+        uses: docker/build-push-action@v7.2.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          load: true
+          tags: ${{ matrix.image }}:local
+
+      - name: Run Trivy vulnerability scan locally without blocking
+        uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          image-ref: ${{ matrix.image }}:local
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+
+      - name: Push image to Docker Hub
+        id: push
+        uses: docker/build-push-action@v7.2.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ matrix.image }}:sha-${{ github.sha }}
+            ${{ matrix.image }}:run-${{ github.run_number }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=${{ matrix.component }}
+
+      - name: Run Trivy vulnerability scan on registry image without blocking
+        uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          image-ref: ${{ matrix.image }}@${{ steps.push.outputs.digest }}
+          format: table
+          exit-code: "0"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+
+      - name: Generate Trivy SARIF for registry image without blocking
+        uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          image-ref: ${{ matrix.image }}@${{ steps.push.outputs.digest }}
+          format: sarif
+          output: trivy-${{ matrix.component }}.sarif
+          exit-code: "0"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+
+      - name: Upload Trivy SARIF artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-${{ matrix.component }}-${{ github.sha }}
+          path: trivy-${{ matrix.component }}.sarif
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Sign and verify image digest with Cosign
+        env:
+          IMAGE_REF: ${{ matrix.image }}@${{ steps.push.outputs.digest }}
+          COSIGN_REGISTRY_REFERRERS_MODE: legacy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          key_file="${RUNNER_TEMP}/cosign.key"
+          cleanup() {
+            rm -f "$key_file"
+          }
+          trap cleanup EXIT
+
+          aws secretsmanager get-secret-value \
+            --secret-id "$COSIGN_KEY_SECRET_ID" \
+            --query SecretString \
+            --output text > "$key_file"
+          chmod 600 "$key_file"
+
+          COSIGN_PASSWORD_VALUE="$(aws secretsmanager get-secret-value \
+            --secret-id "$COSIGN_PASSWORD_SECRET_ID" \
+            --query SecretString \
+            --output text)"
+          echo "::add-mask::$COSIGN_PASSWORD_VALUE"
+          export COSIGN_PASSWORD="$COSIGN_PASSWORD_VALUE"
+          cosign sign --yes --key "$key_file" "$IMAGE_REF"
+
+          # Verify that the public key matches the private key
+          cosign public-key --key "$key_file" > "${RUNNER_TEMP}/derived_cosign.pub"
+          if ! diff -q "${RUNNER_TEMP}/derived_cosign.pub" argocd/security/cosign.pub >/dev/null 2>&1; then
+            echo "::warning::The committed public key argocd/security/cosign.pub does not match the private key in AWS Secrets Manager!"
+            echo "Derived public key:"
+            cat "${RUNNER_TEMP}/derived_cosign.pub"
+            echo "Committed public key:"
+            cat argocd/security/cosign.pub
+          fi
+
+          # Add a delay for registry signature propagation
+          echo "Waiting 10 seconds for signature to propagate..."
+          sleep 10
+
+          cosign verify --key argocd/security/cosign.pub "$IMAGE_REF"
+
+          unset COSIGN_PASSWORD
+
+      - name: Write build summary
+        run: |
+          {
+            echo "### 🚀 Published ${{ matrix.component }} Image"
+            echo "- **Image URL**: \`${{ matrix.image }}\`"
+            echo "- **Tags**:"
+            echo "  - \`sha-${{ github.sha }}\`"
+            echo "  - \`run-${{ github.run_number }}\`"
+            echo "- **Digest**: \`${{ steps.push.outputs.digest }}\`"
+            echo "- **Signed**: Yes (via Cosign) ✅"
+          } >> "$GITHUB_STEP_SUMMARY"

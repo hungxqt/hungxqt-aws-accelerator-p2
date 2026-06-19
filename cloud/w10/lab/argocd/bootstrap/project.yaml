@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: sandbox
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: "Sandbox project for demo applications"
+  sourceRepos:
+    - '*'
+  destinations:
+    - namespace: 'demo-*'
+      server: https://kubernetes.default.svc
+    - namespace: 'backend-*'
+      server: https://kubernetes.default.svc
+    - namespace: 'database-*'
+      server: https://kubernetes.default.svc
+    - namespace: 'frontend-*'
+      server: https://kubernetes.default.svc
+    - namespace: 'prometheus-*'
+      server: https://kubernetes.default.svc
+    - namespace: 'argo-rollout-*'
+      server: https://kubernetes.default.svc
+    - namespace: 'cosign-system'
+      server: https://kubernetes.default.svc
+    - namespace: 'gatekeeper-*'
+      server: https://kubernetes.default.svc
+    - namespace: 'kube-system'
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+    - group: 'apiextensions.k8s.io'
+      kind: CustomResourceDefinition
+    - group: 'admissionregistration.k8s.io'
+      kind: MutatingWebhookConfiguration
+    - group: 'admissionregistration.k8s.io'
+      kind: ValidatingWebhookConfiguration
+    - group: 'templates.gatekeeper.sh'
+      kind: ConstraintTemplate
+    - group: 'constraints.gatekeeper.sh'
+      kind: '*'
+    - group: 'policy.sigstore.dev'
+      kind: ClusterImagePolicy
+    - group: 'apiregistration.k8s.io'
+      kind: APIService

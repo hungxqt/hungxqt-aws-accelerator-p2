@@ -1,0 +1,20 @@
+metrics-server:
+  fullnameOverride: metrics-server
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 100Mi
+    limits:
+      cpu: 100m
+      memory: 200Mi
+  apiService:
+    create: true
+  args:
+    - --kubelet-insecure-tls
+  hostNetwork:
+    enabled: false
+  service:
+    type: ClusterIP
+  serviceMonitor:
+    enabled: false

@@ -1,0 +1,13 @@
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: redis-official-allowed
+spec:
+  images:
+    - glob: "docker.io/library/redis**"
+    - glob: "index.docker.io/library/redis**"
+    - glob: "redis**"
+  authorities:
+    - name: authority-0
+      static:
+        action: pass

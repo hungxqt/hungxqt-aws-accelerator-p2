@@ -726,5 +726,3 @@ The labs and challenges have been completed successfully in accordance with the 
 - Prometheus scrapes and monitors custom application metrics directly from the backend.
 - SLOs are defined using PromQL, and Alertmanager sends email notifications on SLO violations.
 - Argo Rollouts uses a canary strategy to release new versions progressively and implements `AnalysisTemplate` to automatically abort faulty releases.
-
-This evidence pack serves as the submission framework. Once you place the screenshots in the placeholders above, this document will fully substantiate your completion of the morning labs, afternoon labs, and the "Ship Smartly" capstone challenge.

@@ -726,5 +726,3 @@ Các lab và challenge đã được hoàn thành theo đúng tinh thần của 
 - Prometheus đo được custom application metrics từ backend.
 - SLO được định nghĩa bằng PromQL và có cảnh báo email khi vi phạm.
 - Argo Rollouts dùng canary để phát hành dần và dùng `AnalysisTemplate` để tự động chặn bản lỗi.
-
-Evidence pack này là khung nộp bài. Sau khi chèn đủ ảnh vào các placeholder ở trên, tài liệu sẽ chứng minh được cả ba phần: lab buổi sáng, lab buổi chiều và dự án cuối khóa "Ship Smartly".
